@@ -13,12 +13,8 @@ int previousDirectionSwitchState = 0;
 int motorEnabled = 0;
 int motorSpeed = 0;
 int motorDirection = 1;
-int encoderValueA;
-int previousValueA = 0;
-long stepsA = 0;
-int encoderValueB;
-int previousValueB = 0;
-int motorPosition;
+int previousMotorPosition = 0;
+volatile int motorPosition=0;
 
 void setup() {
     // set the switch as an input:
@@ -31,11 +27,12 @@ void setup() {
     pinMode(enablePin, OUTPUT);
     pinMode(encoderA, INPUT);
     pinMode(encoderB, INPUT);
+    attachInterrupt(digitalPinToInterrupt(encoderA), isr, LOW);
  
     // set enablePin high so that motor can turn on:
     digitalWrite(enablePin, LOW);
 
-    Serial.begin(2000000);
+    Serial.begin(115200);
   }
 //In the main loop() read the switch. If it’s high, turn the motor one way by taking one H-bridge pin high and the other low. If the switch is low, reverse the direction by reversing the states of the two H-bridge pins.
 
@@ -74,29 +71,29 @@ void loop() {
     //digitalWrite(motor1Pin, LOW);   // set leg 1 of the H-bridge low
     //digitalWrite(motor2Pin, HIGH);  // set leg 2 of the H-bridge high
    
-    encoderValueA = digitalRead(encoderA);
-    encoderValueB = digitalRead(encoderB);
-
-   if((encoderValueA == 0) && previousValueA == 1){
-    if(encoderValueB == 0){
-      stepsA--;
-    }
-    else{
-      stepsA++;
-    }
-   }
-
-   if((encoderValueA == 1) && (previousValueA == 0)){
-    if(encoderValueB == 1){
-      stepsA--;
-    }
-    else{
-      stepsA++;
-    }
-   }
+//    encoderValueA = digitalRead(encoderA);
+//    encoderValueB = digitalRead(encoderB);
+//
+//   if((encoderValueA == 0) && previousValueA == 1){
+//    if(encoderValueB == 0){
+//      stepsA--;
+//    }
+//    else{
+//      stepsA++;
+//    }
+//   }
+//
+//   if((encoderValueA == 1) && (previousValueA == 0)){
+//    if(encoderValueB == 1){
+//      stepsA--;
+//    }
+//    else{
+//      stepsA++;
+//    }
+//   }
 
    Serial.print("Position: ");
-   Serial.print(stepsA);
+   Serial.print(previousMotorPosition);
    Serial.print("  Enable Pin: ");
    Serial.print(motorEnabled);
    Serial.print("  Direction Pin: ");
@@ -110,7 +107,7 @@ void loop() {
    else {
     analogWrite(enablePin, 0);
    }
-   previousValueA = encoderValueA;
+   //previousValueA = encoderValueA;
 
    previousDirectionSwitchState = directionSwitchState;
    previousOnOffSwitchState = onOffSwitchState;
@@ -128,4 +125,14 @@ void loop() {
     //Serial.print("Position: ");
     //Serial.println(stepsA);
    
+}
+
+void isr () {
+  if (digitalRead(encoderB) == LOW){
+    motorPosition--;
   }
+  else {
+    motorPosition++;
+  }
+  previousMotorPosition = motorPosition;
+}
