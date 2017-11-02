@@ -1,0 +1,186 @@
+/*
+ * This program allows for the wireless position control of the motors.
+ * Using the Pololu 34:1 Metal Gearmotor 25Dx52L mm LP 6V with 48 CPR Encoder (Test Motors)
+ * the given values are as follows:
+ * Exact Gear Ratio: 34.014
+ * Counts per minute: 48
+ * Counts per rotati on (GR * CPM): 1633.92 approx 1634
+ * 
+ * Motor 1 PID Velocity
+ * P:6675.44778
+ * I:171.82847
+ * D:0
+ * QPPS:9376
+ * 
+ * Motor 2 PID Velocity
+ * P:6790.12546
+ * I:180.89777
+ * D:0
+ * QPPS:8930
+ * 
+ * 
+ * Motor 1 PID Position
+ * P:50784.93837
+ * I:779.52073
+ * D:551430.69682
+ * 
+ * Motor 2 PID Position
+ * P:60478.92946
+ * I:1007.99754
+ * D:604780.06624
+ * 
+ */
+
+
+
+//Includes required to use Roboclaw library
+#include <SoftwareSerial.h>
+#include "RoboClaw.h"
+
+//See limitations of Arduino SoftwareSerial
+SoftwareSerial serial(5,6);  
+RoboClaw roboclaw(&serial,10000);
+
+
+
+#define address1 0x80
+#define address2 0x81
+#define address3 0x82
+
+//Velocity PID coefficients.
+#define Kp1 0
+#define Ki1 0
+#define Kd1 0
+#define qpps1 9376
+
+#define Kp2 0
+#define Ki2 0
+#define Kd2 0
+#define qpps2 8930
+
+int speedPin=9;
+int dirPin=10;
+int powerPin=3;
+int32_t roverDir;
+int32_t remoteSpeed;
+int32_t powerOnOff;
+int32_t roverSpeed;
+
+void initializeRover(int, int);
+
+void setup() {
+  //Open Serial and roboclaw serial ports
+  pinMode(speedPin, INPUT);
+  pinMode(dirPin, INPUT);
+  pinMode(powerPin, INPUT);
+  Serial.begin(57600);
+  roboclaw.begin(38400);
+  
+  //Set PID Coefficients
+  roboclaw.SetM1VelocityPID(address1,Kd1,Kp1,Ki1,qpps1);
+  roboclaw.SetM2VelocityPID(address1,Kd2,Kp2,Ki2,qpps2);  
+
+}
+
+void displayspeed(void)
+{
+  uint8_t status1,status2,status3,status4;
+  bool valid1,valid2,valid3,valid4;
+  
+  int32_t enc1= roboclaw.ReadEncM1(address1, &status1, &valid1);
+  int32_t enc2 = roboclaw.ReadEncM2(address1, &status2, &valid2);
+  int32_t speed1 = roboclaw.ReadSpeedM1(address1, &status3, &valid3);
+  int32_t speed2 = roboclaw.ReadSpeedM2(address1, &status4, &valid4);
+  Serial.print("Encoder1:");
+  if(valid1){
+    Serial.print(enc1);
+    Serial.print(" ");
+    Serial.print(status1,HEX);
+    Serial.print(" ");
+  }
+  else{
+    Serial.print("invalid ");
+  }
+  Serial.print("Encoder2:");
+  if(valid2){
+    Serial.print(enc2);
+    Serial.print(" ");
+    Serial.print(status2,HEX);
+    Serial.print(" ");
+  }
+  else{
+    Serial.print("invalid ");
+  }
+  Serial.print("Speed1:");
+  if(valid3){
+    Serial.print(speed1);
+    Serial.print(" ");
+  }
+  else{
+    Serial.print("invalid ");
+  }
+  Serial.print("Speed2:");
+  if(valid4){
+    Serial.print(speed2);
+    Serial.print(" ");
+  }
+  else{
+    Serial.print("invalid ");
+  }
+  Serial.print("Power:");
+  Serial.print(powerOnOff);
+  Serial.println();
+}
+
+void loop() {
+  roverDir=pulseIn(dirPin,HIGH);
+  remoteSpeed=pulseIn(speedPin, HIGH);
+  powerOnOff=pulseIn(powerPin, HIGH);
+
+  roverSpeed=remoteSpeed*6;
+
+  if (powerOnOff > 1500){
+    roboclaw.SpeedM1(address1, 0);
+    roboclaw.SpeedM2(address1, 0);
+    //roboclaw.SpeedM1(address2, 0);
+    //roboclaw.SpeedM2(address2, 0);
+    //roboclaw.SpeedM1(address3, 0);
+    //roboclaw.SpeedM2(address3, 0);
+    //roboclaw.SpeedAccelDeccelPositionM1(address1,0,roverSpeed,0,9000,1);
+    //roboclaw.SpeedAccelDeccelPositionM1(address1,0,roverSpeed,0,1000,0);
+    //roboclaw.SpeedAccelDeccelPositionM1(address2,0,roverSpeed,0,9000,1);
+    //roboclaw.SpeedAccelDeccelPositionM1(address2,0,roverSpeed,0,1000,0);
+    //roboclaw.SpeedAccelDeccelPositionM1(address3,0,roverSpeed,0,9000,1);
+    //roboclaw.SpeedAccelDeccelPositionM1(address3,0,roverSpeed,0,1000,0);
+    displayspeed();
+    delay(10);
+  }
+  else{
+   roboclaw.SpeedM1(address1,roverSpeed); 
+   roboclaw.SpeedM2(address1,roverSpeed);
+   //roboclaw.SpeedM1(address2,roverSpeed); 
+   //roboclaw.SpeedM2(address2,roverSpeed);
+   //roboclaw.SpeedM1(address3,roverSpeed); 
+   //roboclaw.SpeedM2(address3,roverSpeed);
+   displayspeed();
+   delay(10);
+  }
+
+//  Serial.print("Velocity: ");
+//  Serial.print(roverSpeed-988);
+//  Serial.print("   Switch: ");
+//  Serial.print(powerOnOff);
+//  Serial.print("     Direction: ");
+//  Serial.println(roverDir-1490);
+//  for(uint8_t i = 0;i<100;i++){
+//    displayspeed();
+//    delay(10);
+//  }
+
+}
+
+
+//Write Functions Below:
+void initializeRover(int, int){
+  roboclaw.SpeedAccelDeccelPositionM1(address1,0,11000, 0, 0,1);
+}
