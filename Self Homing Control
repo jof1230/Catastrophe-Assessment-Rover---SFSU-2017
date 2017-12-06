@@ -1,0 +1,353 @@
+ /*
+ * This program allows for the wireless position control of the motors.
+ * Using the Pololu 34:1 Metal Gearmotor 25Dx52L mm LP 6V with 48 CPR Encoder (Test Motors)
+ * the given values are as follows:
+ * Exact Gear Ratio: 34.014
+ * Counts per minute: 48
+ * Counts per rotati on (GR * CPM): 1633.92 approx 1634
+ * Rotations to reach halfway: 816.336 approx: 816
+ * 
+ * Motor 1 PID Velocity
+ * P:9158.38873
+ * I:1709.39896
+ * D:0
+ * QPPS:10182
+ * 
+ * Motor 2 PID Velocity
+ * P:8855.98910
+ * I:1680.08714
+ * D:0
+ * QPPS:9166
+ * 
+ * 
+ * Motor 1 PID Position
+ * P:50784.93837
+ * I:779.52073
+ * D:551430.69682
+ * 
+ * Motor 2 PID Position
+ * P:60478.92946
+ * I:1007.99754
+ * D:604780.06624
+ * 
+ */
+
+
+
+//Includes required to use Roboclaw library
+#include <SoftwareSerial.h>
+#include "RoboClaw.h"
+
+//See limitations of Arduino SoftwareSerial
+SoftwareSerial serial(5,6);  
+RoboClaw roboclaw(&serial,10000);
+
+
+
+#define address1 0x80
+#define address2 0x81
+#define address3 0x82
+
+//Velocity PID coefficients.
+//#define Kp1 1155
+//#define Ki1 0.1
+//#define Kd1 0
+//#define qpps1 5750                 // From PWM Settings 
+//
+//#define Kp2 1155           
+//#define Ki2 1000
+//#define Kd2 0
+//#define qpps2 5790                // From PWM Settings 
+//
+////Position PID coefficients M2 and M5 on (MC B) Middle.
+//#define Kp3 1000
+//#define Ki3 1000
+//#define Kd3 0
+//#define qpps3 6155                // From PWM Settings                 
+//
+//#define Kp4 1000
+//#define Ki4 1000
+//#define Kd4 0
+//#define qpps4 6055                // From PWM Settings  
+//
+////Position PID coefficients M3 and M6 on (MC C) Back.
+//#define Kp5 0  
+//#define Ki5 0
+//#define Kd5 0
+//#define qpps5 6000               // From PWM Settings                
+//
+//#define Kp6 0
+//#define Ki6 0
+//#define Kd6 0
+//#define qpps6 6000               // From PWM Settings
+
+
+int speedPin=13;
+int dirPin=12;
+int powerPin=3;
+double remoteDir, dirScale, roverDir;
+double remoteSpeed, speedScale, roverSpeed;
+
+//void initializeRover(int, int);
+
+void setup() {
+  //Open Serial and roboclaw serial ports
+  pinMode(speedPin, INPUT);
+  pinMode(dirPin, INPUT);
+  pinMode(powerPin, INPUT);
+  
+  Serial.begin(57600);
+  roboclaw.begin(38400);
+  
+  //Set PID Coefficients
+//  roboclaw.SetM1VelocityPID(address1,Kd1,Kp1,Ki1,qpps1);
+//  roboclaw.SetM2VelocityPID(address1,Kd2,Kp2,Ki2,qpps2);  
+//  roboclaw.SetM1VelocityPID(address2,Kd3,Kp3,Ki3,qpps3);
+//  roboclaw.SetM2VelocityPID(address2,Kd4,Kp4,Ki4,qpps4);  
+//  roboclaw.SetM1VelocityPID(address3,Kd5,Kp5,Ki5,qpps5);
+//  roboclaw.SetM2VelocityPID(address3,Kd6,Kp6,Ki6,qpps6);  
+
+  //Serial.println("Initializing");
+  //initializeRover();
+
+}
+
+void displayspeed(void)
+{
+  uint8_t status1,status2,status3,status4;
+  bool valid1,valid2,valid3,valid4;
+  
+  int32_t enc1= roboclaw.ReadEncM1(address1, &status1, &valid1);
+  int32_t enc2 = roboclaw.ReadEncM2(address1, &status2, &valid2);
+  int32_t speed1 = roboclaw.ReadSpeedM1(address1, &status3, &valid3);
+  int32_t speed2 = roboclaw.ReadSpeedM2(address1, &status4, &valid4);
+  Serial.print("Encoder1:");
+  if(valid1){
+    Serial.print(enc1);
+    Serial.print(" ");
+    Serial.print(status1,HEX);
+    Serial.print(" ");
+  }
+  else{
+    Serial.print("invalid ");
+  }
+  Serial.print("Encoder2:");
+  if(valid2){
+    Serial.print(enc2);
+    Serial.print(" ");
+    Serial.print(status2,HEX);
+    Serial.print(" ");
+  }
+  else{
+    Serial.print("invalid ");
+  }
+  Serial.print("Speed1:");
+  if(valid3){
+    Serial.print(speed1);
+    Serial.print(" ");
+  }
+  else{
+    Serial.print("invalid ");
+  }
+  Serial.print("Speed2:");
+  if(valid4){
+    Serial.print(speed2);
+    Serial.print(" ");
+  }
+  else{
+    Serial.print("invalid ");
+  }
+  Serial.println();
+}
+
+void initializeRover(void){
+  int stopMoving;
+
+  roboclaw.SpeedM1(address1,0);
+  roboclaw.SpeedM2(address1,0);
+  roboclaw.SpeedM1(address2,0);
+  roboclaw.SpeedM2(address2,0);
+  roboclaw.SpeedM1(address3,0);
+  roboclaw.SpeedM2(address3,0);
+//////////////////////////////////////// Initialize Motor 1 ///////////////////////////////////
+  stopMoving = pulseIn(powerPin,HIGH);
+  Serial.println("Initializing Motor 1");
+  while(stopMoving < 1500){
+    roboclaw.SpeedM1(address1,800);
+    stopMoving = pulseIn(powerPin, HIGH);
+  }
+  Serial.println("stop Motor 1");
+//////////////////////////////////////// Initialize Motor 1 ///////////////////////////////////
+
+  roboclaw.SpeedM1(address1,0);
+  delay(2000);
+
+//////////////////////////////////////// Initialize Motor 2 ///////////////////////////////////
+  stopMoving = pulseIn(powerPin, HIGH);
+  Serial.println("Initializing Motor 2");
+  while(stopMoving < 1500){
+    roboclaw.SpeedM2(address1,800);
+    stopMoving = pulseIn(powerPin, HIGH);
+  }
+  Serial.println("stop Motor 2");
+//////////////////////////////////////// Initialize Motor 2 ///////////////////////////////////  
+
+  roboclaw.SpeedM2(address1,0);
+  delay(2000);
+  
+//////////////////////////////////////// Initialize Motor 3 ///////////////////////////////////
+  stopMoving = pulseIn(powerPin,HIGH);
+  Serial.println("Initializing Motor 3");
+  while(stopMoving < 1500){
+    roboclaw.SpeedM1(address2,800);
+    stopMoving = pulseIn(powerPin, HIGH);
+  }
+  Serial.println("stop Motor 3");
+//////////////////////////////////////// Initialize Motor 3 ///////////////////////////////////
+
+  roboclaw.SpeedM1(address2,0);
+  delay(2000);
+//////////////////////////////////////// Initialize Motor 4 ///////////////////////////////////
+  stopMoving = pulseIn(powerPin,HIGH);
+  Serial.println("Initializing Motor 4");
+  while(stopMoving < 1500){
+    roboclaw.SpeedM2(address2,800);
+    stopMoving = pulseIn(powerPin, HIGH);
+  }
+  Serial.println("stop Motor 4");
+//////////////////////////////////////// Initialize Motor 4 ///////////////////////////////////
+
+  roboclaw.SpeedM2(address2,0);
+  delay(2000);
+  
+//////////////////////////////////////// Initialize Motor 5 ///////////////////////////////////
+  stopMoving = pulseIn(powerPin,HIGH);
+  Serial.println("Initializing Motor 5");
+  while(stopMoving < 1500){
+    roboclaw.SpeedM1(address3,800);
+    stopMoving = pulseIn(powerPin, HIGH);
+  }
+  Serial.println("stop Motor 5");
+//////////////////////////////////////// Initialize Motor 5 ///////////////////////////////////
+
+  roboclaw.SpeedM1(address3,0);
+  delay(2000);
+  
+//////////////////////////////////////// Initialize Motor 6 ///////////////////////////////////  
+  stopMoving = pulseIn(powerPin,HIGH);
+  Serial.println("Initializing Motor 6");
+  while(stopMoving < 1500){
+    roboclaw.SpeedM2(address3,800);
+    stopMoving = pulseIn(powerPin, HIGH);
+  }
+  Serial.println("stop Motor 6");
+//////////////////////////////////////// Initialize Motor 6 ///////////////////////////////////
+
+  roboclaw.SpeedM2(address3,0);
+  delay(2000);
+}
+
+void speedControl(int, int, int){
+    remoteSpeed=pulseIn(speedPin, HIGH);
+    Serial.print(remoteSpeed); // Check the Remote input speed
+    speedScale = (remoteSpeed-1000)/993;
+    roverSpeed = 6000 * speedScale;
+    //Serial.println(roverSpeed); // See the speed output to the remote.
+  }
+  
+  void directionControl(int, int, int){
+    remoteDir=pulseIn(dirPin,HIGH);
+    Serial.print(remoteDir); // Check the remote input from the remote.
+    dirScale = ((-1)*(((remoteDir-993)/498)-1))*0.4;
+    roverDir = roverSpeed + roverSpeed*dirScale;
+    Serial.println(roverDir); // See the direction output to the remote
+  }
+
+void moveSet1(int){
+  roboclaw.SpeedM1(address1,roverSpeed);
+  roboclaw.SpeedM2(address2,roverSpeed);
+  roboclaw.SpeedM1(address3,roverSpeed);
+  
+  roboclaw.SpeedDistanceM1(address1,roverSpeed,816,1); //816 is equivalent to the distance necessary to turn half a revolution
+  roboclaw.SpeedDistanceM2(address2,roverSpeed,816,1);
+  roboclaw.SpeedDistanceM1(address3,roverSpeed,816,1);
+}
+
+void moveSet2(int){
+  roboclaw.SpeedM2(address1,roverSpeed);
+  roboclaw.SpeedM1(address2,roverSpeed);
+  roboclaw.SpeedM2(address3,roverSpeed);
+  
+  roboclaw.SpeedDistanceM2(address1,roverSpeed,816,1); //816 is equivalent to the distance necessary to turn half a revolution
+  roboclaw.SpeedDistanceM1(address2,roverSpeed,816,1);
+  roboclaw.SpeedDistanceM2(address3,roverSpeed,816,1);
+}
+
+
+void loop() {
+  int stopMoving = pulseIn(powerPin, HIGH);
+  uint8_t status1,status2,status3,status4;
+  bool valid1,valid2,valid3,valid4;
+
+  
+  while (stopMoving > 1500){
+  int stopMoving = pulseIn(powerPin, HIGH);
+  //Serial.println("Starting Speed Control");
+  speedControl(remoteSpeed, speedScale, roverSpeed);
+//  Serial.println("Starting direction Control");
+  //directionControl(remoteDir, dirScale, roverDir);
+
+  //Serial.println("Moving Set 1");
+  //moveSet1(roverSpeed);
+  //Serial.println("Moving Set 2");
+  //moveSet2(roverSpeed);
+//  displayspeed();
+  roboclaw.SpeedM1(address1,roverSpeed);
+  roboclaw.SpeedM2(address1,roverSpeed);
+  roboclaw.SpeedM1(address2,roverSpeed);
+  roboclaw.SpeedM2(address2,roverSpeed);
+  roboclaw.SpeedM1(address3,roverSpeed);
+  roboclaw.SpeedM2(address3,roverSpeed);
+
+  int32_t m1speed1 = roboclaw.ReadSpeedM1(address1, &status3, &valid3);
+  int32_t m1speed2 = roboclaw.ReadSpeedM2(address1, &status4, &valid4);
+  int32_t m2speed1 = roboclaw.ReadSpeedM1(address2, &status3, &valid3);
+  int32_t m2speed2 = roboclaw.ReadSpeedM2(address2, &status4, &valid4);
+  int32_t m3speed1 = roboclaw.ReadSpeedM1(address3, &status3, &valid3);
+  int32_t m3speed2 = roboclaw.ReadSpeedM2(address3, &status4, &valid4);
+
+  Serial.print("Speed Out: ");
+  Serial.print(roverSpeed);
+  Serial.print("  Speed 1: ");
+  Serial.print(m1speed1);
+  Serial.print("  Speed 2: ");
+  Serial.print(m1speed2);
+  Serial.print("  Speed 3: ");
+  Serial.print(m2speed1);
+  Serial.print("  Speed 4: ");
+  Serial.print(m2speed2);
+  Serial.print("  Speed 5: ");
+  Serial.print(m3speed1);
+  Serial.print("  Speed 6: ");
+  Serial.print(m3speed2);
+  Serial.println("");
+
+    if (stopMoving < 1500){
+      break;
+    }
+  
+  }
+  initializeRover();
+}
+
+
+
+
+//Write Functions Below:
+//void initializeRover(int, int){
+  //roboclaw.SpeedAccelDeccelPositionM1(address1,0,11000, 0, 0,1);
+  
+  
+  
+  
+//}
