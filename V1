@@ -1,0 +1,219 @@
+//This fuction is to take each motor to a home position. 
+//On each Roboclaw, S4Mode and S5Mode are set to Home(User). 
+
+#include <SoftwareSerial.h>
+#include "RoboClaw.h"
+SoftwareSerial serial(5,6);  
+RoboClaw roboclaw(&serial,10000);
+
+#define address1 0x80                   //roboclaw 1, M1 & M4
+#define address2 0x81                   //roboblaw 2, M2 & M5
+#define address3 0x82                   //roboclaw 3, M3 & M6
+//#define QPPS1 6550
+//M1 QPPS = 6550
+//M4 QPPS = 6745
+//M1 = 2440 ticks per rev. MAX set ar 22160 
+//M4 = 2440  ticks per rev. MAX set at 18720
+
+//M2 QPPS = 5990
+//M5 QPPS = 6015
+//M2 = 2440 ticks per rev. MAX set ar 22160 
+//M5 = 2440  ticks per rev. MAX set at 18720
+
+//M3 QPPS = 6550
+//M6 QPPS = 6610
+//M3 = 2440 ticks per rev. MAX set ar 22160 
+//M6 = 2440 ticks per rev. MAX set at 18720
+
+int speedPin=13;             //RC  L&R of Right joystick   (1089, 1500, 1889)
+int dirPin=12;               //RC UP & DOWN of Right joystick   (1089, 1500, 1889)
+int powerPin=3;
+int relay2=9;
+int hallsensor;
+
+double  remoteDir, dirScale, roverDir;
+double remoteSpeed, speedScale, roverSpeed;
+
+void setup() {
+
+    pinMode(speedPin, INPUT);
+    pinMode(dirPin, INPUT);
+    pinMode(powerPin, INPUT);
+    pinMode(relay2,OUTPUT);
+    Serial.begin(57600);
+    roboclaw.begin(38400);   
+    FindZero();
+    }
+
+void FindZero(){
+  
+int hallsensor = pulseIn(3,HIGH),
+ // startMoving = pulseIn(powerPin,HIGH);
+  digitalRead(hallsensor);
+  if(hallsensor > 1500){
+  digitalWrite(relay2,HIGH);
+  roboclaw.BackwardM1(address1,25);
+  roboclaw.BackwardM2(address1,25);
+  roboclaw.BackwardM1(address2,25);
+  roboclaw.BackwardM2(address2,25);
+  roboclaw.BackwardM1(address3,25);
+  roboclaw.BackwardM2(address3,25);  
+ // startMoving = pulseIn(powerPin, HIGH);
+  delay(3000); 
+  digitalWrite(relay2,LOW);
+  
+//  roboclaw.SetEncM2(address1,0);
+//  roboclaw.SetEncM1(address2,0);
+//  roboclaw.SetEncM2(address2,0);
+//  roboclaw.SetEncM1(address3,0);
+//  roboclaw.SetEncM2(address3,0);
+  StandUpAllMotors();
+   InitialPosition();
+  }
+
+
+
+
+
+  
+//------------------------------------- Motors got to zero point--------------------------------
+
+//  roboclaw.SpeedM1(address1,0);
+//  roboclaw.SpeedM2(address1,0);
+//  roboclaw.SpeedM1(address2,0);
+//  roboclaw.SpeedM2(address2,0);
+//  roboclaw.SpeedM1(address3,0);
+//  roboclaw.SpeedM2(address3,0);
+//  delay(2000);
+
+  
+}
+void StandUpAllMotors(){
+    roboclaw.SpeedAccelDeccelPositionM1(address1,0,1200,0,800,1);
+    roboclaw.SpeedAccelDeccelPositionM2(address1,0,1200,0,800,1);  
+    roboclaw.SpeedAccelDeccelPositionM1(address2,0,1200,0,800,1);
+    roboclaw.SpeedAccelDeccelPositionM2(address2,0,1200,0,800,1); 
+    roboclaw.SpeedAccelDeccelPositionM1(address3,0,1200,0,800,1);
+    roboclaw.SpeedAccelDeccelPositionM2(address3,0,1200,0,800,1);     
+    delay(3000);  
+  }
+
+
+void InitialPosition(){
+    roboclaw.SpeedAccelDeccelPositionM1(address1,0,900,0,1750,1);   //405, 640
+    roboclaw.SpeedAccelDeccelPositionM2(address1,0,900,0,1750,1);   //420, 650   
+    roboclaw.SpeedAccelDeccelPositionM1(address2,0,900,0,1750,1);   //500, 770
+    roboclaw.SpeedAccelDeccelPositionM2(address2,0,900,0,1750,1);   //400, 640
+    roboclaw.SpeedAccelDeccelPositionM1(address3,0,900,0,1750,1);   //470, 755
+    roboclaw.SpeedAccelDeccelPositionM2(address3,0,900,0,1750,1);   //400, 650
+    delay(3000);
+    ZeroPosition();  
+  }
+void ZeroPosition(){
+    roboclaw.SpeedAccelDeccelPositionM1(address1,0,2200,0,1750,1);   //640  Down
+    roboclaw.SpeedAccelDeccelPositionM2(address1,0,2200,0,450,1);   //150  Up 
+    roboclaw.SpeedAccelDeccelPositionM1(address2,0,2200,0,450,1);   //200  Up
+    roboclaw.SpeedAccelDeccelPositionM2(address2,0,2200,0,1750,1);   //640  Down
+    roboclaw.SpeedAccelDeccelPositionM1(address3,0,2200,0,1750,1);   //755  Down
+    roboclaw.SpeedAccelDeccelPositionM2(address3,0,2200,0,450,1);   //160  Up   
+    delay(1000);  
+  }     
+//---------------------------------------------------------------------------------------------------------------------------
+void speedControl(int, int, int){
+    remoteSpeed=pulseIn(speedPin, HIGH);
+   // Serial.print(remoteSpeed); // Check the Remote input speed
+    speedScale = (remoteSpeed-1000)/993;
+    roverSpeed = 6000 * speedScale;
+    //Serial.println(roverSpeed); // See the speed output to the remote.
+  }
+  
+  void directionControl(int, int, int){
+    remoteDir=pulseIn(dirPin,HIGH);
+    //Serial.print(remoteDir); // Check the remote input from the remote.
+    dirScale = ((-1)*(((remoteDir-993)/498)-1))*0.4;
+    roverDir = roverSpeed + roverSpeed*dirScale;
+    //Serial.println(roverDir); // See the direction output to the remote
+  }
+
+void moveSet1(int){
+  roboclaw.SpeedM1(address1,roverSpeed);
+  roboclaw.SpeedM2(address2,roverSpeed);
+  roboclaw.SpeedM1(address3,roverSpeed);
+  
+  roboclaw.SpeedDistanceM1(address1,roverSpeed,816,1); //816 is equivalent to the distance necessary to turn half a revolution
+  roboclaw.SpeedDistanceM2(address2,roverSpeed,816,1);
+  roboclaw.SpeedDistanceM1(address3,roverSpeed,816,1);
+}
+
+void moveSet2(int){
+  roboclaw.SpeedM2(address1,roverSpeed);
+  roboclaw.SpeedM1(address2,roverSpeed);
+  roboclaw.SpeedM2(address3,roverSpeed);
+  
+  roboclaw.SpeedDistanceM2(address1,roverSpeed,816,1); //816 is equivalent to the distance necessary to turn half a revolution
+  roboclaw.SpeedDistanceM1(address2,roverSpeed,816,1);
+  roboclaw.SpeedDistanceM2(address3,roverSpeed,816,1);
+}
+
+void loop() {
+//  int stopMoving = pulseIn(powerPin, HIGH);
+//  uint8_t status1,status2,status3,status4;
+//  bool valid1,valid2,valid3,valid4;
+//
+//  
+//  while (stopMoving > 1500){
+//  int stopMoving = pulseIn(powerPin, HIGH);
+//  //Serial.println("Starting Speed Control");
+//  speedControl(remoteSpeed, speedScale, roverSpeed);
+////  Serial.println("Starting direction Control");
+//  //directionControl(remoteDir, dirScale, roverDir);
+//
+//  //Serial.println("Moving Set 1");
+//  //moveSet1(roverSpeed);
+//  //Serial.println("Moving Set 2");
+//  //moveSet2(roverSpeed);
+////  displayspeed();
+//  roboclaw.SpeedM1(address1,roverSpeed);
+//  roboclaw.SpeedM2(address1,roverSpeed);
+//  roboclaw.SpeedM1(address2,roverSpeed);
+//  roboclaw.SpeedM2(address2,roverSpeed);
+//  roboclaw.SpeedM1(address3,roverSpeed);
+//  roboclaw.SpeedM2(address3,roverSpeed);
+//
+//  int32_t m1speed1 = roboclaw.ReadSpeedM1(address1, &status3, &valid3);
+//  int32_t m1speed2 = roboclaw.ReadSpeedM2(address1, &status4, &valid4);
+//  int32_t m2speed1 = roboclaw.ReadSpeedM1(address2, &status3, &valid3);
+//  int32_t m2speed2 = roboclaw.ReadSpeedM2(address2, &status4, &valid4);
+//  int32_t m3speed1 = roboclaw.ReadSpeedM1(address3, &status3, &valid3);
+//  int32_t m3speed2 = roboclaw.ReadSpeedM2(address3, &status4, &valid4);
+//
+//  int current1;
+//  int current2; 
+//  roboclaw.ReadCurrents(address1,current1,current2);
+//
+//  Serial.print("Speed Out: ");
+//  Serial.print(current1); 
+////  Serial.print("  Speed 1: ");
+////  Serial.print(m1speed1);
+////  Serial.print("  Speed 2: ");
+////  Serial.print(m1speed2);
+////  Serial.print("  Speed 3: ");
+////  Serial.print(m2speed1);
+////  Serial.print("  Speed 4: ");
+////  Serial.print(m2speed2);
+////  Serial.print("  Speed 5: ");
+////  Serial.print(m3speed1);
+////  Serial.print("  Speed 6: ");
+////  Serial.print(m3speed2);
+//  Serial.println("");
+// if (stopMoving < 1500){
+//      break;
+//    }
+//  
+//  }
+//  FindZero();
+  
+}
+
+
+
