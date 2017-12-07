@@ -1,0 +1,295 @@
+ /*
+ * This program allows for the wireless position control of the motors.
+ * Using the Pololu 34:1 Metal Gearmotor 25Dx52L mm LP 6V with 48 CPR Encoder (Test Motors)
+ * the given values are as follows:
+ * Exact Gear Ratio: 34.014
+ * Counts per minute: 48
+ * Counts per rotati on (GR * CPM): 1633.92 approx 1634
+ * Rotations to reach halfway: 816.336 approx: 816
+ * 
+ * Motor 1 PID Velocity
+ * P:9158.38873
+ * I:1709.39896
+ * D:0
+ * QPPS:10182
+ * 
+ * Motor 2 PID Velocity
+ * P:8855.98910
+ * I:1680.08714
+ * D:0
+ * QPPS:9166
+ * 
+ * 
+ * Motor 1 PID Position
+ * P:50784.93837
+ * I:779.52073
+ * D:551430.69682
+ * 
+ * Motor 2 PID Position
+ * P:60478.92946
+ * I:1007.99754
+ * D:604780.06624
+ * 
+ */
+
+
+
+//Includes required to use Roboclaw library
+#include <SoftwareSerial.h>
+#include "RoboClaw.h"
+
+//See limitations of Arduino SoftwareSerial
+SoftwareSerial serial(5,6);  
+RoboClaw roboclaw(&serial,10000);
+
+//Velocity PID coefficients.
+//#define Kp1 1155
+//#define Ki1 0.1
+//#define Kd1 0
+//#define qpps1 5750                 // From PWM Settings 
+//
+//#define Kp2 1155           
+//#define Ki2 1000
+//#define Kd2 0
+//#define qpps2 5790                // From PWM Settings 
+//
+////Position PID coefficients M2 and M5 on (MC B) Middle.
+//#define Kp3 1000
+//#define Ki3 1000
+//#define Kd3 0
+//#define qpps3 6155                // From PWM Settings                 
+//
+//#define Kp4 1000
+//#define Ki4 1000
+//#define Kd4 0
+//#define qpps4 6055                // From PWM Settings  
+//
+////Position PID coefficients M3 and M6 on (MC C) Back.
+//#define Kp5 0  
+//#define Ki5 0
+//#define Kd5 0
+//#define qpps5 6000               // From PWM Settings                
+//
+//#define Kp6 0
+//#define Ki6 0
+//#define Kd6 0
+//#define qpps6 6000               // From PWM Settings
+
+#define address1 0x80
+#define address2 0x81
+#define address3 0x82
+#define maxPos 2147483647
+
+int speedPin=13;
+int dirPin=12;
+int powerPin=3;
+int relay2=9;
+int hallSensor;
+double remoteDir, dirScale, roverDir;
+double remoteSpeed, speedScale, roverSpeed;
+
+
+//////////////////////////////////////// Setup Begin ///////////////////////////////////
+void setup() {
+  //Open Serial and roboclaw serial ports
+  pinMode(speedPin, INPUT);
+  pinMode(dirPin, INPUT);
+  pinMode(powerPin, INPUT);
+  pinMode(relay2,OUTPUT);
+  
+  Serial.begin(57600);
+  roboclaw.begin(38400);
+  FindZero();
+
+}
+//////////////////////////////////////// Setup End///////////////////////////////////
+
+////////////////////////////////////////// Find Zero Begin //////////////////////////////////////////
+void FindZero(){
+  roboclaw.SpeedM1(address1,0);
+  roboclaw.SpeedM2(address1,0);
+  roboclaw.SpeedM1(address2,0);
+  roboclaw.SpeedM2(address2,0);
+  roboclaw.SpeedM1(address3,0);
+  roboclaw.SpeedM2(address3,0);
+  
+  int hallsensor = pulseIn(3,HIGH);
+  digitalRead(hallsensor);
+  if(hallsensor > 1500){
+    digitalWrite(relay2,HIGH);
+    roboclaw.BackwardM1(address1,25);
+    roboclaw.BackwardM2(address1,25);
+    roboclaw.BackwardM1(address2,25);
+    roboclaw.BackwardM2(address2,25);
+    roboclaw.BackwardM1(address3,25);
+    roboclaw.BackwardM2(address3,25);  
+    delay(3000); 
+    digitalWrite(relay2,LOW);
+
+    StandUpAllMotors();
+    InitialPosition();
+  }
+}
+////////////////////////////////////////// Find Zero End //////////////////////////////////////////
+
+////////////////////////////////////////// Stand Up Motors Begin //////////////////////////////////////////
+void StandUpAllMotors(){
+    roboclaw.SpeedAccelDeccelPositionM1(address1,0,1200,0,800,1);
+    roboclaw.SpeedAccelDeccelPositionM2(address1,0,1200,0,800,1);  
+    roboclaw.SpeedAccelDeccelPositionM1(address2,0,1200,0,800,1);
+    roboclaw.SpeedAccelDeccelPositionM2(address2,0,1200,0,800,1); 
+    roboclaw.SpeedAccelDeccelPositionM1(address3,0,1200,0,800,1);
+    roboclaw.SpeedAccelDeccelPositionM2(address3,0,1200,0,800,1);     
+    delay(3000);  
+}
+////////////////////////////////////////// Stand Up Motors End //////////////////////////////////////////
+
+////////////////////////////////////////// Initial Position Begin //////////////////////////////////////////
+void InitialPosition(){
+    roboclaw.SpeedAccelDeccelPositionM1(address1,0,900,0,1750,1);   //405, 640
+    roboclaw.SpeedAccelDeccelPositionM2(address1,0,900,0,1750,1);   //420, 650   
+    roboclaw.SpeedAccelDeccelPositionM1(address2,0,900,0,1750,1);   //500, 770
+    roboclaw.SpeedAccelDeccelPositionM2(address2,0,900,0,1750,1);   //400, 640
+    roboclaw.SpeedAccelDeccelPositionM1(address3,0,900,0,1750,1);   //470, 755
+    roboclaw.SpeedAccelDeccelPositionM2(address3,0,900,0,1750,1);   //400, 650
+    delay(3000);
+    ZeroPosition();  
+}
+////////////////////////////////////////// Initial Position End //////////////////////////////////////////
+
+////////////////////////////////////////// Zero Position Begin //////////////////////////////////////////
+void ZeroPosition(){
+    roboclaw.SpeedAccelDeccelPositionM1(address1,0,2200,0,640,1);   //640  Down
+    roboclaw.SpeedAccelDeccelPositionM2(address1,0,2200,0,150,1);   //150  Up 
+    roboclaw.SpeedAccelDeccelPositionM1(address2,0,2200,0,200,1);   //200  Up
+    roboclaw.SpeedAccelDeccelPositionM2(address2,0,2200,0,640,1);   //640  Down
+    roboclaw.SpeedAccelDeccelPositionM1(address3,0,2200,0,755,1);   //755  Down
+    roboclaw.SpeedAccelDeccelPositionM2(address3,0,2200,0,160,1);   //160  Up   
+    delay(1000);
+    roboclaw.SetEncM1(address1,0);
+    roboclaw.SetEncM2(address1,0);
+    roboclaw.SetEncM1(address2,0);
+    roboclaw.SetEncM2(address2,0);
+    roboclaw.SetEncM1(address3,0);
+    roboclaw.SetEncM2(address3,0);
+      
+}
+////////////////////////////////////////// Zero Position End //////////////////////////////////////////
+
+////////////////////////////////////////// Speed Control Begin //////////////////////////////////////////
+void speedControl(int, int, int){
+    remoteSpeed=pulseIn(speedPin, HIGH);
+    //Serial.print(remoteSpeed); // Check the Remote input speed
+    speedScale = (remoteSpeed-1000)/993;
+    roverSpeed = 6000 * speedScale;
+    //Serial.println(roverSpeed); // See the speed output to the remote.
+}
+////////////////////////////////////////// Speed Control Begin //////////////////////////////////////////
+
+////////////////////////////////////////// Direction Control Begin //////////////////////////////////////////
+void directionControl(int, int, int){
+  remoteDir=pulseIn(dirPin,HIGH);
+  Serial.print(remoteDir); // Check the remote input from the remote.
+  dirScale = ((-1)*(((remoteDir-993)/498)-1))*0.4;
+  roverDir = roverSpeed + roverSpeed*dirScale;
+  Serial.println(roverDir); // See the direction output to the remote
+}
+////////////////////////////////////////// Direction Control End //////////////////////////////////////////
+
+void readAndPrint(int){
+  uint8_t status1,status2,status3,status4,status5,status6,status7,status8,status9,status10,status11,status12;
+  bool valid1,valid2,valid3,valid4,valid5,valid6,valid7,valid8,valid9,valid10,valid11,valid12;
+  int current1,current2,current3,current4,current5,current6,current7,current8,curent9,current10,current11,current12;
+  
+////////////////////////////////////////// Start Reading //////////////////////////////////////////
+  
+
+  int32_t m1speed1 = roboclaw.ReadSpeedM1(address1, &status3, &valid3);
+  int32_t m1speed2 = roboclaw.ReadSpeedM2(address1, &status4, &valid4);
+  int32_t m2speed1 = roboclaw.ReadSpeedM1(address2, &status3, &valid3);
+  int32_t m2speed2 = roboclaw.ReadSpeedM2(address2, &status4, &valid4);
+  int32_t m3speed1 = roboclaw.ReadSpeedM1(address3, &status3, &valid3);
+  int32_t m3speed2 = roboclaw.ReadSpeedM2(address3, &status4, &valid4);
+  int32_t enc1 = roboclaw.ReadEncM1(address1, &status1, &valid1);
+  int32_t enc2 = roboclaw.ReadEncM2(address1, &status2, &valid2);
+  int32_t enc3 = roboclaw.ReadEncM1(address1, &status1, &valid1);
+  int32_t enc4 = roboclaw.ReadEncM2(address1, &status2, &valid2);
+  int32_t enc5 = roboclaw.ReadEncM1(address1, &status1, &valid1);
+  int32_t enc6 = roboclaw.ReadEncM2(address1, &status2, &valid2);
+////////////////////////////////////////// End Reading //////////////////////////////////////////
+
+////////////////////////////////////////// Print Begin //////////////////////////////////////////
+  Serial.print("Speed Out: ");
+  Serial.print(roverSpeed);
+//  Serial.print("Current1: ");
+//  Serial.print(current1);
+//  Serial.print(" Current2: ");
+//  Serial.print(current2);
+  Serial.print("  Speed 1: ");
+  Serial.print(m1speed1);
+  Serial.print("  Speed 2: ");
+  Serial.print(m1speed2);
+//  Serial.print("  Speed 3: ");
+//  Serial.print(m2speed1);
+//  Serial.print("  Speed 4: ");
+//  Serial.print(m2speed2);
+//  Serial.print("  Speed 5: ");
+//  Serial.print(m3speed1);
+//  Serial.print("  Speed 6: ");
+//  Serial.print(m3speed2);
+  Serial.print("  EncPos 1: ");
+  Serial.print(enc1);
+  Serial.print("  EncPos 2: ");
+  Serial.print(enc2);
+//  Serial.print("  EncPos 3: ");
+//  Serial.print(enc3);
+//  Serial.print("  EncPos 4: ");
+//  Serial.print(enc4);
+//  Serial.print("  EncPos 5: ");
+//  Serial.print(enc5);
+//  Serial.print("  EncPos 6: ");
+//  Serial.print(enc6);
+  Serial.println("");
+  ////////////////////////////////////////// Print End //////////////////////////////////////////
+}
+  
+void loop() {
+  int stopMoving = pulseIn(powerPin, HIGH);
+  int motorPos = 0;
+  uint8_t status1,status2,status3,status4,status5,status6,status7,status8,status9,status10,status11,status12;
+  bool valid1,valid2,valid3,valid4,valid5,valid6,valid7,valid8,valid9,valid10,valid11,valid12;
+  
+  while (stopMoving > 1500){ 
+    int stopMoving = pulseIn(powerPin, HIGH);
+    speedControl(remoteSpeed, speedScale, roverSpeed);
+    directionControl(remoteDir, dirScale, roverDir);
+    int32_t enc1 = roboclaw.ReadEncM1(address1, &status1, &valid1);
+    int32_t enc2 = roboclaw.ReadEncM2(address1, &status2, &valid2);
+    int32_t enc3 = roboclaw.ReadEncM1(address2, &status1, &valid1);
+    int32_t enc4 = roboclaw.ReadEncM2(address2, &status2, &valid2);
+    int32_t enc5 = roboclaw.ReadEncM1(address3, &status1, &valid1);
+    int32_t enc6 = roboclaw.ReadEncM2(address3, &status2, &valid2);
+
+    roboclaw.SpeedAccelDeccelPositionM1(address1,10000,roverSpeed,10000,maxPos,1);
+    roboclaw.SpeedAccelDeccelPositionM2(address1,10000,roverSpeed,10000,maxPos,1);
+    roboclaw.SpeedAccelDeccelPositionM1(address2,10000,roverSpeed,10000,maxPos,1);
+    roboclaw.SpeedAccelDeccelPositionM2(address2,10000,roverSpeed,10000,maxPos,1);
+    roboclaw.SpeedAccelDeccelPositionM1(address3,10000,roverSpeed,10000,maxPos,1);
+    roboclaw.SpeedAccelDeccelPositionM2(address3,10000,roverSpeed,10000,maxPos,1);
+
+    if (enc1 >= 0.95*maxPos){
+    roboclaw.SetEncM1(address1,0);
+    roboclaw.SetEncM2(address1,0);
+    roboclaw.SetEncM1(address2,0);
+    roboclaw.SetEncM2(address2,0);
+    roboclaw.SetEncM1(address3,0);
+    roboclaw.SetEncM2(address3,0);
+    }
+
+    //readAndPrint(roverSpeed);
+  
+  } // End while loop
+
+  FindZero();
+  
+} //end main loop
